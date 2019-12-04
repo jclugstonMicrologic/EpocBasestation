@@ -747,7 +747,7 @@ int ReadLowBatStatus(void)
 
 /*
 *|----------------------------------------------------------------------------
-*|  Routine:ReadLowBatStatus
+*|  Routine:ReadPowerOnStatus
 *|  Description:
 *|  Retval:
 *|----------------------------------------------------------------------------
