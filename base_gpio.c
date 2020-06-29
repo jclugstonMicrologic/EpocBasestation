@@ -693,6 +693,16 @@ void BuzzerChirp(int nbrChirps)
 {
 	int j;
 	
+//#define LESS_ANNOYING_CHIRP
+#ifdef LESS_ANNOYING_CHIRP
+	for(j=0; j<nbrChirps; j++)
+	{
+		BuzzerOn(1);
+		usleep(15000);
+		BuzzerOff();
+		usleep(15000);
+	}	
+#else
 	for(j=0; j<nbrChirps; j++)
 	{
 		BuzzerOn(1);
@@ -700,6 +710,7 @@ void BuzzerChirp(int nbrChirps)
 		BuzzerOff();
 		usleep(75000);
 	}	
+#endif	
 }
 
 /*

@@ -2,10 +2,11 @@
 #include <time.h>
 #include <string.h>
 #include <sys/statvfs.h>
+#include <stdio.h>
 
 #include <dirent.h>
 
-#define BASE_STATION_VERSION "BASE STATION v0.12 12/03/2019\n"   
+#define BASE_STATION_VERSION "BASE STATION v0.13 06/26/2020\n"   
 
 #define SWIFTNAV
 #ifdef SWIFTNAV
@@ -24,9 +25,9 @@
 
 #define AMOUNT_TO_COPY			86400 /* how far back in time to copy to usb (24hrs) */
 
-#define MIN_DISK_SPACE			50000000 //(50MB of 800MB), if we reach this limit, do not proceed (test fail)
+#define MIN_DISK_SPACE			50000000 /* (50MB of 800MB), if we reach this limit, do not proceed (test fail) */
 
-#define MANAGE_DISK_SPACE	   100000000 //(100MB of 800MB), if we reach this limit, start deleting oldest files
+#define MANAGE_DISK_SPACE	   100000000 /* (100MB of 800MB), if we reach this limit, start deleting oldest files */
 
 /* define these for normal operation */
 #define USE_OTG_MSD
@@ -36,21 +37,15 @@
 //#define AUTO_START
 //#define DISABLE_PV_DETECT
 //#define SIM_GPS_DATE_TIME
-//#define SIM_RAW_DATA
 //#define SKIP_SELF_TEST
+//#define SIM_RAW_DATA
 //#define FILE_WRITE_TEST
 //#define LED_TEST_ENABLED
 //#define INIT_GNSS_ENABLED
 //#define GPS_DISABLED
 
+//#define STORAGE_DRIVE "/media/storage"
 /** Local Constants and Types *************************************************/
-#if 0
-enum
-{
-	LED_BLINK =0,
-	LED_SOLID 
-};
-#else
 enum
 {
 	LED_OFF =0,
@@ -58,7 +53,6 @@ enum
 	LED_BLINK,
 	LED_BLINK2
 };
-#endif
 
 typedef enum
 {
@@ -78,10 +72,12 @@ typedef enum
 	
 	SYSTEM_STATE_FINALIZE_DATA_TRANSFER,	
 	SYSTEM_STATE_COPY_FILES,
+	SYSTEM_STATE_WAIT_USB_MOUNT,
 	SYSTEM_STATE_WAIT_USER_FAIL_ACK,
 		
 	SYSTEM_STATE_SHUT_DOWN,
 	SYSTEM_STATE_USB_POWERED,
+	SYSTEM_STATE_LINUX_SHUT_DOWN,
 	
 	SYSTEM_STATE_LED_TEST_STATE1,
 	SYSTEM_STATE_LED_TEST_STATE2,
@@ -149,6 +145,7 @@ unsigned int TotalFileSize =0;
 unsigned long long GetOtgDiskSpace(void);
 unsigned long GetFileSize(char *pFileName);
 
+
 /*
 *|----------------------------------------------------------------------------
 *|  Routine: CheckFileExists
@@ -190,8 +187,8 @@ int ManageLogfiles(void)
 	
 	struct stat filestat;
 	struct stat filestat2;
-	time_t epoch;
-	time_t epoch2;
+	time_t epoch =0;
+	time_t epoch2 =0;
 	struct tm fileTime;    
 	int cnt =0;
 	unsigned long long DiskFreeSpace;
@@ -247,7 +244,7 @@ int ManageLogfiles(void)
 							fileTime.tm_year =(fileTime.tm_year*multiplier) + (st[cnt]-0x30);
 							
 							value[digCnt] =(value[digCnt]*multiplier) + (st[cnt]-0x30);
-							//printf("%x\n", st[cnt]);
+							//printf("%x,", st[cnt]);
 							multiplier =10;
 							
 							cnt++;
@@ -256,9 +253,10 @@ int ManageLogfiles(void)
 						/* sanity check */
 						if( fileTime.tm_year<2017 || fileTime.tm_year >2100 )
 						{
-							fileValid =0;
-							epoch2 =0;
-							printf("filename error\n");
+							//fileValid =0;
+							//epoch2 =0;
+							printf("filename error: ");
+							printf("%s %d\n", dir->d_name, nbrFiles);
 							break;
 						}
 						else
@@ -312,7 +310,7 @@ int ManageLogfiles(void)
 						{
 							fileTime.tm_min =(fileTime.tm_min*multiplier) + (st[cnt]-0x30);
 							
-							//printf("%x\n", st[cnt]);
+							//printf("%x,", st[cnt]);
 							multiplier =10;
 							
 							cnt++;
@@ -324,7 +322,7 @@ int ManageLogfiles(void)
 						{
 							fileTime.tm_sec =(fileTime.tm_sec*multiplier) + (st[cnt]-0x30);
 							
-							//printf("%x\n", st[cnt]);
+							//printf("%x,", st[cnt]);
 							multiplier =10;
 							
 							cnt++;
@@ -369,9 +367,15 @@ int ManageLogfiles(void)
 						epoch2 =epoch;
 						
 						strcpy(oldest, "/home/root/msd/");	
-						strcat(oldest, dir->d_name);				
+						strcat(oldest, dir->d_name);	
+
+						printf("\nthe FIRST oldest file found is %s\n", oldest);						
 					}			
-					double timeDiff =(epoch-epoch2);
+					//double timeDiff =((double)epoch-(double)epoch2);
+					time_t timeDiff =(epoch-epoch2);
+					printf("Timediff %d ", timeDiff);
+					printf("%d ", epoch);
+					printf("%d\n", epoch2);
 					
 					if( timeDiff<0 )// || timeDiff>1000000000 )
 					{
@@ -380,11 +384,13 @@ int ManageLogfiles(void)
 						epoch2 =epoch;
 						strcpy(oldest, "/home/root/msd/");	
 						strcat(oldest, dir->d_name);
+						
+						printf("\noldest file is now %s\n", oldest);			
 					}			
 				}
 			}		
 						
-			printf("\nthe oldest file is %s\n", oldest);
+			printf("\nTHE OLDEST FILE IS %s\n", oldest);
 			
 			DiskFreeSpace =GetOtgDiskSpace();	
 			
@@ -393,7 +399,7 @@ int ManageLogfiles(void)
 			if( DiskFreeSpace<MANAGE_DISK_SPACE) /* 100MB */
 			{
 				int retval =remove(oldest);			
-				
+
 				if(retval ==0)
 				{
 					memoryCheck =0;
@@ -434,6 +440,7 @@ int CreateLogFile(char *pFileExt)
 
 #ifdef USE_OTG_MSD	
 	sprintf(filename1, "/home/root/msd/b_%d_%d_%d_%d_%d_%d.%s",GpsDateTime.year,GpsDateTime.month,GpsDateTime.day,GpsDateTime.hour,GpsDateTime.min,GpsDateTime.sec,pFileExt);	
+	//sprintf(filename1, "/media/storage/b_%d_%d_%d_%d_%d_%d.%s",GpsDateTime.year,GpsDateTime.month,GpsDateTime.day,GpsDateTime.hour,GpsDateTime.min,GpsDateTime.sec,pFileExt);	
 	sprintf(logFileName, "b_%d_%d_%d_%d_%d_%d.%s",GpsDateTime.year,GpsDateTime.month,GpsDateTime.day,GpsDateTime.hour,GpsDateTime.min,GpsDateTime.sec,pFileExt);		
 #else
 	// use the SD card
@@ -451,15 +458,28 @@ int CreateLogFile(char *pFileExt)
 				
 	GpsEpoch = mktime(&gpsfileTime);		 
 	printf("%d %s\n", GpsEpoch, filename1);
-	
-#ifdef USE_OTG_MSD	
+
+
+#ifdef USE_OTG_MSD
 	system("mkdir /home/root/msd");
 	system("mkdir /media/usb");
 
+	system("umount /home/root/msd");
+	
 	retval = system("mount -o offset=8192 /dev/mmcblk0p9 /home/root/msd");
+	//retval = system("mount -o offset=8192 /dev/mmcblk0p9 /media/storage");
 	printf("%d\n", retval);
 	
+#if 1	
+	if(retval !=0 )
+	{
+		retval = system("mount -o offset=8192 /dev/mmcblk0p9 /home/root/msd");
+		printf("%d\n", retval);		
+	}
+#endif
+	
 	while( ManageLogfiles() ==0 ){}	
+	
 #else
 	retval = system("mount /dev/mmcblk1p1 /media/sdcard");
 	printf("%d\n", retval);
@@ -514,25 +534,28 @@ int CreateLogFile(char *pFileExt)
 void SimGpsTime()
 {
 	int value;
+
+	struct timespec spec;	
+	clock_gettime(CLOCK_REALTIME, &spec);	
 	
 	GpsTow.week =1949;
 	GpsTow.time =321548;
 
-	GpsDateTime.year =2019;
+	GpsDateTime.year =2020;
 	
 	value =rand() % 12;
-	GpsDateTime.month =11;//value;
+	GpsDateTime.month =06;//value;
 	
 	value =rand() % 30;
-	GpsDateTime.day  =18;//value;
+	GpsDateTime.day  =22;//value;
 	
 	value =rand() % 12;
 	GpsDateTime.hour =1;//value;
 	
-	value =rand() % 60;
+	value =spec.tv_sec% 60;
 	GpsDateTime.min =value;
 	
-	value =rand() % 60;
+	value =spec.tv_sec % 60;
 	GpsDateTime.sec =value;
 }
 
@@ -776,8 +799,10 @@ int MountUsbDrive(void)
 {
 	int retval =0;
 	
-	/* mount USB drive */
+	/* first umount USB drive */
 	system("umount /media/usb");
+	
+	/* now mount USB drive */
 	retval = system("mount /dev/sda /media/usb");
 	printf("%d\n", retval);
 					
@@ -855,8 +880,8 @@ void CopyLogToUsbDrive(void)
 	
 	struct stat filestat;
 	struct stat filestat2;
-	time_t epoch;
-	time_t epoch2;
+	time_t fileEpoch =0;
+	//time_t epoch2 =0;
 	struct tm fileTime;    
 	int cnt =0;
 	unsigned long long DiskFreeSpace;
@@ -878,7 +903,7 @@ void CopyLogToUsbDrive(void)
 			int multiplier =1;
 			int digCnt =0;
 			
-			epoch =0;
+			fileEpoch =0;
 			
 			while(1)
 			{	
@@ -906,7 +931,8 @@ void CopyLogToUsbDrive(void)
 					/* sanity check */
 					if( fileTime.tm_year<2017 || fileTime.tm_year >2100 )
 					{
-						printf("filename error\n");
+						printf("filename error: ");
+						printf("%s %d\n", dir->d_name, nbrFiles);
 						break;
 					}
 						
@@ -985,8 +1011,8 @@ void CopyLogToUsbDrive(void)
 				#endif
 					//printf("%d %d %d %d %d %d\n", fileTime.tm_year, fileTime.tm_mon, fileTime.tm_mday, fileTime.tm_hour,fileTime.tm_min,fileTime.tm_sec);
 						
-					epoch = mktime(&fileTime);		 
-					printf("%d %s\n", epoch, dir->d_name);
+					fileEpoch = mktime(&fileTime);		 
+					printf("%d %s\n", fileEpoch, dir->d_name);
 
 					break;
 				}	
@@ -999,14 +1025,19 @@ void CopyLogToUsbDrive(void)
 				}
 			}
 										
-			if( (GpsEpoch -epoch)<AMOUNT_TO_COPY && (GpsEpoch -epoch)>=0 )
+			if( (GpsEpoch -fileEpoch)<AMOUNT_TO_COPY && (GpsEpoch -fileEpoch)>=0 )
 			{
-				//printf("%ld %ld %s\n", GpsEpoch, epoch, dir->d_name);
+				//printf("%ld %ld %s\n", GpsEpoch, fileEpoch, dir->d_name);
 	
 				sprintf(fileCpyStr, "cp /home/root/msd/%s /media/usb/%s",dir->d_name,dir->d_name);
 				system(fileCpyStr);
 				printf(fileCpyStr);
 				printf("\n");						
+				
+				//sprintf(fileCpyStr, "cp /media/usb/%s /home/root/msd/%s",dir->d_name,dir->d_name);
+				//system(fileCpyStr);
+				//printf(fileCpyStr);
+				//printf("\n");										
 			}
 		}		
 						
@@ -1057,7 +1088,7 @@ int main(void)
 	
 	int nbrBytes=0;
 	int retval =0;
-
+	int copyTries =0;
 //	uint16_t LoopCounter =0;	
 //	int eventCount =0;
 //	int cameraTriggerCount =0;
@@ -1267,7 +1298,7 @@ int main(void)
 				SetGpsTime(GpsTow.week, GpsTow.time);
 				printf("\nGPS SIM time %s\n%d %d\n", rxBuffer, GpsTow.week, GpsTow.time);		
 
-				CreateLogFile("log");
+				CreateLogFile("sbp");
 								
 				DiskFreeSpace =GetOtgDiskSpace();				
 				
@@ -1383,11 +1414,17 @@ int main(void)
 				/* power turned off, let's stop */
 			#ifndef AUTO_START				
 				if( ReadPowerOnStatus() ==0 ) 					
-			#endif					
 				{		
 					MainSystem.stateTimer =spec.tv_sec;
 					MainSystem.machState =SYSTEM_STATE_DEBOUNCE_POWER_DWN;
 				}
+			#else
+				if( (spec.tv_sec -MainSystem.stateTimer) >15 )	
+				{
+					MainSystem.stateTimer =spec.tv_sec;
+					MainSystem.machState =SYSTEM_STATE_DEBOUNCE_POWER_DWN;				
+				}
+			#endif					
 				break;					
 			case SYSTEM_STATE_DEBOUNCE_POWER_DWN:
 			#ifndef AUTO_START
@@ -1398,14 +1435,16 @@ int main(void)
 				else if( (spec.tv_sec -MainSystem.stateTimer) >=POWER_DOWN_ASSSERT_TIME ) 				
 			#endif					
 				{					
-					printf("\npwring down\n");					
+					printf("\npowering down\n");					
 					MainSystem.stateTimer =spec.tv_sec;
 
 					fp = fopen(filename1,"a");
 					//fwrite(eventCount, 1, sizeof(eventCount), fp);
 					fprintf(fp, "\nShut Down\n");
 					fclose(fp);	
-																			
+
+					copyTries =0;
+					
 					MainSystem.machState =SYSTEM_STATE_COPY_FILES;						
 				}
 				break;
@@ -1413,8 +1452,8 @@ int main(void)
 				MainSystem.stateTimer =spec.tv_sec;
 			
 				retval =MountUsbDrive();
-													
-				if( retval ==0 )
+										
+				if( retval ==0 )				
 				{
 					YellowLedOff();
 						
@@ -1430,6 +1469,12 @@ int main(void)
 												
 					if( MemAvail >TotalFileSize )
 					{
+					#if 1							
+						RedLedOn(LED_ON);
+						BuzzerChirp(2);
+						MainSystem.stateTimer =spec.tv_sec;
+						MainSystem.machState =SYSTEM_STATE_WAIT_USB_MOUNT; 
+					#else
 						/* if space okay, write to disk, blink green led  */						
 						GreenLedOn(LED_BLINK);
 						
@@ -1437,7 +1482,8 @@ int main(void)
 						CopyLogToUsbDrive();	
 						printf("finish copy\n");												
 						
-						MainSystem.machState =SYSTEM_STATE_FINALIZE_DATA_TRANSFER; //SYSTEM_STATE_POWER_DOWN;								
+						MainSystem.machState =SYSTEM_STATE_FINALIZE_DATA_TRANSFER; 
+					#endif
 					}
 					else
 					{						
@@ -1447,19 +1493,43 @@ int main(void)
 						BuzzerOn(1);							
 						
 						printf("No space available\n");		
+						/* umount USB drive */
+						retval = system("umount /media/usb");
 						MainSystem.machState =SYSTEM_STATE_WAIT_USER_FAIL_ACK;		
-					}
-						
-					/* umount USB drive */
-					retval = system("umount /media/usb");																		
+					}											
 				}
 				else
-				{
+				{					
 					printf("no usb drive found\n");
-					MainSystem.machState =SYSTEM_STATE_POWER_DOWN;							
+					
+					RedLedOn(LED_ON);
+					
+					if( ++copyTries >20 )
+						MainSystem.machState =SYSTEM_STATE_POWER_DOWN;							
+					else
+					{
+						usleep(500000);
+						MainSystem.machState =SYSTEM_STATE_COPY_FILES;
+					}
 				}										
-				break;			
-			case  SYSTEM_STATE_READY_GPS_LOST:
+				break;	
+			case SYSTEM_STATE_WAIT_USB_MOUNT:
+				if( (spec.tv_sec-MainSystem.stateTimer) >1 )
+				{
+					/* if space okay, write to disk, blink green led  */						
+					GreenLedOn(LED_BLINK);
+							
+					printf("start copy\n");
+					CopyLogToUsbDrive();	
+					printf("finish copy\n");												
+						
+					/* umount USB drive */
+					retval = system("umount /media/usb");
+					MainSystem.stateTimer =spec.tv_sec;						
+					MainSystem.machState =SYSTEM_STATE_FINALIZE_DATA_TRANSFER; 
+				}
+				break;
+			case SYSTEM_STATE_READY_GPS_LOST:
 				if( GpsPosValid() ==1 )
 				{
 					YellowLedOff();
@@ -1505,14 +1575,16 @@ int main(void)
 			case SYSTEM_STATE_POWER_DOWN:				
 				YellowLedOn(LED_BLINK, spec.tv_nsec/1000000);
 				
-				printf("\nsignal pic to power down\n");																					
-				PwrDownSignalOn();
+				//printf("\nsignal pic to power down\n");																					
+				//PwrDownSignalOn();
 				GpsOff();	
 				
 				BuzzerChirp(8);
 				
 				system("umount /home/root/msd");
 				
+				//system("shutdown now");
+				MainSystem.stateTimer =spec.tv_sec;
 				MainSystem.machState =SYSTEM_STATE_SHUT_DOWN;
 				break;
 		#if 0
@@ -1528,8 +1600,24 @@ int main(void)
 				}
 				break;
 		#endif
-			case SYSTEM_STATE_SHUT_DOWN:			
-				/* do nothing state */
+			case SYSTEM_STATE_SHUT_DOWN:
+				if( (spec.tv_sec - MainSystem.stateTimer) >4 )
+				{	
+					printf("\nsignal pic to power down\n");																					
+					PwrDownSignalOn();
+
+					/* we are about to lose control of the led so 
+					   keep led on during shutdown
+					*/
+					YellowLedOn(LED_ON);
+					
+					system("shutdown -H now");
+					
+					MainSystem.machState =SYSTEM_STATE_LINUX_SHUT_DOWN;
+				}
+				break;
+			case SYSTEM_STATE_LINUX_SHUT_DOWN:
+				/* do nothing state */				
 				break;
 			case SYSTEM_STATE_USB_POWERED:
 				/* do nothing state */
@@ -1632,7 +1720,7 @@ int main(void)
 			fflush( stdout );
 			
 			if( MainSystem.machState >=SYSTEM_STATE_SELF_TEST_PASS &&
-				MainSystem.machState <SYSTEM_STATE_SHUT_DOWN
+				MainSystem.machState <SYSTEM_STATE_POWER_DOWN //SYSTEM_STATE_SHUT_DOWN
 			  )
 			{					
 				fp = fopen(filename1,"a");
@@ -1707,6 +1795,7 @@ int main(void)
 				   MainSystem.machState !=SYSTEM_STATE_USB_POWERED &&
 				   MainSystem.machState !=SYSTEM_STATE_SHUT_DOWN &&
 				   MainSystem.machState !=SYSTEM_STATE_COPY_FILES &&
+				   MainSystem.machState !=SYSTEM_STATE_WAIT_USB_MOUNT &&
 				   MainSystem.machState !=SYSTEM_STATE_FINALIZE_DATA_TRANSFER &&
 				   MainSystem.machState !=SYSTEM_STATE_WAIT_USER_FAIL_ACK
 				  )

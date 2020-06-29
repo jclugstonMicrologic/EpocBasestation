@@ -39,3 +39,18 @@ v0.08     Auto shutdown was originally correct in v0.06, went back to that
 
 v0.09     Turn Leds off when in USB powered (charging) state
 11/09/18  
+
+v0.11	  Add 'b' to log file name "u_yy_mm_dd_hh_min_ss
+11/26/19  If USB device inserted and memory space is available then 
+	  copy log file(s) to USB drive on power down button push
+	  If internal memory available is <100MB, delete oldest files until
+	  available memory is >100MB
+	  Minimum disk space cutoff reduced from 150MB to 50MB, this should not happen
+	  now that we are managing the internal memory when 100MB of free space is reached
+	  Power down button must be asserted for 1sec prior to powering down
+
+v0.12	  Toggle buzzer (every second) if uSB memory full
+12/03/19
+
+v0.13	  ManageLogfiles() issue with file name error fixed (recycle bin folder)
+06/24/20  Gracefully shutdown Linux OS
