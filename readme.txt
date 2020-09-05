@@ -54,3 +54,10 @@ v0.12	  Toggle buzzer (every second) if uSB memory full
 
 v0.13	  ManageLogfiles() issue with file name error fixed (recycle bin folder)
 06/24/20  Gracefully shutdown Linux OS
+
+v0.14	  Do not enter usb powered mode
+07/30/20 
+
+v0.15	  Copy files if shutdown in startup up states(idle/powered)
+09/05/20  Reset usb drive (GPS power) if device (/dev/sdx) not found
+	  Find newest file 

@@ -6,7 +6,7 @@
 
 #include <dirent.h>
 
-#define BASE_STATION_VERSION "BASE STATION v0.14 07/30/2020\n"   
+#define BASE_STATION_VERSION "BASE STATION v0.15 09/05/2020\n"   
 
 #define SWIFTNAV
 #ifdef SWIFTNAV
@@ -78,6 +78,8 @@ typedef enum
 	SYSTEM_STATE_SHUT_DOWN,
 	SYSTEM_STATE_USB_POWERED,
 	SYSTEM_STATE_LINUX_SHUT_DOWN,
+	
+	SYSTEM_STATE_POWER_DOWN_NO_FILE,
 	
 	SYSTEM_STATE_LED_TEST_STATE1,
 	SYSTEM_STATE_LED_TEST_STATE2,
@@ -175,7 +177,7 @@ int CheckFileExists(char *filename)
 *|  Retval:
 *|----------------------------------------------------------------------------
 */
-int ManageLogfiles(void)
+int ManageLogfiles(int findNewest)
 {
 	DIR *d;
 	char st[80];
@@ -369,7 +371,13 @@ int ManageLogfiles(void)
 						strcpy(oldest, "/home/root/msd/");	
 						strcat(oldest, dir->d_name);	
 
-						printf("\nthe FIRST oldest file found is %s\n", oldest);						
+						if( findNewest ==0)
+							printf("\nthe FIRST oldest file found is %s\n", oldest);						
+						else
+						{
+							GpsEpoch = mktime(&fileTime);	
+							printf("\nthe FIRST newest file found is %s\n", oldest);						
+						}
 					}			
 					//double timeDiff =((double)epoch-(double)epoch2);
 					time_t timeDiff =(epoch-epoch2);
@@ -377,20 +385,46 @@ int ManageLogfiles(void)
 					printf("%d ", epoch);
 					printf("%d\n", epoch2);
 					
-					if( timeDiff<0 )// || timeDiff>1000000000 )
+					if(findNewest ==0)
 					{
-						//filestat2.st_mtime =filestat.st_mtime;
-						//printf("oldest file %s", ctime(&filestat.st_mtime));
-						epoch2 =epoch;
-						strcpy(oldest, "/home/root/msd/");	
-						strcat(oldest, dir->d_name);
-						
-						printf("\noldest file is now %s\n", oldest);			
-					}			
+						if( timeDiff<0 )// || timeDiff>1000000000 )
+						{
+							//filestat2.st_mtime =filestat.st_mtime;
+							//printf("oldest file %s", ctime(&filestat.st_mtime));
+							epoch2 =epoch;
+							strcpy(oldest, "/home/root/msd/");	
+							strcat(oldest, dir->d_name);
+							
+							printf("\noldest file is now %s\n", oldest);			
+						}			
+					}
+					else
+					{
+						if( timeDiff>0 )
+						{
+							//filestat2.st_mtime =filestat.st_mtime;
+							//printf("oldest file %s", ctime(&filestat.st_mtime));
+							epoch2 =epoch;
+							strcpy(oldest, "/home/root/msd/");	
+							strcat(oldest, dir->d_name);
+							
+							GpsEpoch = mktime(&fileTime);	
+							
+							printf("\nnewest file is now %s\n", oldest);			
+						}									
+					}
 				}
 			}		
-						
-			printf("\nTHE OLDEST FILE IS %s\n", oldest);
+			
+			if(findNewest ==0)			
+				printf("\nTHE OLDEST FILE IS %s\n", oldest);
+			else
+			{
+				printf("\nTHE NEWEST FILE IS %s\n", oldest);
+				
+				//GpsEpoch = mktime(&fileTime);		 
+				printf("GPS Epoch to use %d\n", GpsEpoch);
+			}
 			
 			DiskFreeSpace =GetOtgDiskSpace();	
 			
@@ -478,7 +512,7 @@ int CreateLogFile(char *pFileExt)
 	}
 #endif
 	
-	while( ManageLogfiles() ==0 ){}	
+	while( ManageLogfiles(0) ==0 ){}	
 	
 #else
 	retval = system("mount /dev/mmcblk1p1 /media/sdcard");
@@ -802,28 +836,52 @@ int MountUsbDrive(void)
 	/* first umount USB drive */
 	system("umount /media/usb");
 	
+	usleep(500000);
+	
 	/* now mount USB drive */
 	retval = system("mount /dev/sda /media/usb");
 	printf("%d\n", retval);
 					
 	if( retval !=0 )
 	{
+		usleep(100000);
 		retval = system("mount /dev/sda1 /media/usb");
 		printf("%d\n", retval);						
 	}
 				
 	if( retval !=0 )
 	{
+		usleep(100000);
 		retval = system("mount /dev/sdb /media/usb");
 		printf("%d\n", retval);						
 	}	
 
 	if( retval !=0 )
 	{
+		usleep(100000);
 		retval = system("mount /dev/sdb1 /media/usb");
 		printf("%d\n", retval);						
 	}					
 
+	if( retval !=0 )
+	{
+		/* failed all attempts, reset USB */
+		GpsOff();	
+		usleep(1000000);		
+			
+		GpsOn();
+		//RedLedOff(LED_OFF);		
+		usleep(1000000);		
+		//RedLedOn(LED_ON);
+		usleep(1000000);		
+		
+		usleep(1000000);		
+		
+		usleep(1000000);	
+		
+		usleep(1000000);	
+	}
+	
 	return retval;
 }
 
@@ -1208,11 +1266,12 @@ int main(void)
 				GpsPositionValid =0;
 				SwiftNavTime =0;
 				
-				GpsOff();
+				GpsOff();	
+				
 				YellowLedOff();					
 				BuzzerOff();				
 				PwrDownSignalOff();				
-
+				
 				MainSystem.stateTimer =spec.tv_sec;
 				MainSystem.machState =SYSTEM_STATE_STARTUP;			
 				break;
@@ -1252,15 +1311,20 @@ int main(void)
 					//MainSystem.machState =SYSTEM_STATE_USB_POWERED;
 				}
 				break;
-			case SYSTEM_STATE_IDLE:
+			case SYSTEM_STATE_IDLE:										
 				if( (spec.tv_sec -MainSystem.stateTimer) >=POWER_UP_TIME )
 				{
 					/* if GPS powered on and data received, turn Vcc on (staggered) */
 					//VccOn();
-												
+							
 					MainSystem.stateTimer =spec.tv_sec;
 					
 					MainSystem.machState =SYSTEM_STATE_POWERED;
+				}
+				if( ReadPowerOnStatus() ==0 ) 					
+				{		
+					MainSystem.stateTimer =spec.tv_sec;
+					MainSystem.machState =SYSTEM_STATE_POWER_DOWN_NO_FILE;
 				}
 				break;
 			case SYSTEM_STATE_POWERED:													
@@ -1288,7 +1352,12 @@ int main(void)
 				#endif				
 				
 					MainSystem.machState =SYSTEM_STATE_WAIT_GPS_TIME;
-				}								
+				}
+				if( ReadPowerOnStatus() ==0 ) 					
+				{		
+					MainSystem.stateTimer =spec.tv_sec;
+					MainSystem.machState =SYSTEM_STATE_POWER_DOWN_NO_FILE;
+				}				
 				break;
 			case SYSTEM_STATE_WAIT_GPS_TIME:
 			#ifdef SIM_GPS_DATE_TIME								
@@ -1426,6 +1495,7 @@ int main(void)
 			#endif					
 				break;					
 			case SYSTEM_STATE_DEBOUNCE_POWER_DWN:
+			case SYSTEM_STATE_POWER_DOWN_NO_FILE:
 			#ifndef AUTO_START
 				if( ReadPowerOnStatus() ==1 ) // false power down
 				{
@@ -1437,11 +1507,38 @@ int main(void)
 					printf("\npowering down\n");					
 					MainSystem.stateTimer =spec.tv_sec;
 
-					fp = fopen(filename1,"a");
-					//fwrite(eventCount, 1, sizeof(eventCount), fp);
-					fprintf(fp, "\nShut Down\n");
-					fclose(fp);	
-
+					if( MainSystem.machState ==SYSTEM_STATE_DEBOUNCE_POWER_DWN )
+					{
+						fp = fopen(filename1,"a");
+						//fwrite(eventCount, 1, sizeof(eventCount), fp);			
+						fprintf(fp, "\nShut Down\n");
+						fclose(fp);	
+					}
+					else
+					{
+						/* no file was created, do stuff here */
+											
+						system("mkdir /home/root/msd");
+						system("mkdir /media/usb");
+						system("umount /home/root/msd");
+	
+						retval = system("mount -o offset=8192 /dev/mmcblk0p9 /home/root/msd");	
+						
+						if(retval !=0 )
+						{
+							usleep(100000);	
+							retval = system("mount -o offset=8192 /dev/mmcblk0p9 /home/root/msd");
+							printf("%d\n", retval);		
+						}
+			
+						printf("%d\n", retval);						
+						
+						/* first find newest file to give us an Epoc value (no GPS at this time) */
+						while( ManageLogfiles(1) ==0 ){}	
+						
+						usleep(100000);	
+					}
+					
 					copyTries =0;
 					
 					MainSystem.machState =SYSTEM_STATE_COPY_FILES;						
@@ -1503,7 +1600,7 @@ int main(void)
 					
 					RedLedOn(LED_ON);
 					
-					if( ++copyTries >20 )
+					if( ++copyTries >2 )
 						MainSystem.machState =SYSTEM_STATE_POWER_DOWN;							
 					else
 					{
@@ -1805,7 +1902,9 @@ int main(void)
 				   MainSystem.machState !=SYSTEM_STATE_WAIT_USB_MOUNT &&
 				   MainSystem.machState !=SYSTEM_STATE_FINALIZE_DATA_TRANSFER &&
 				   MainSystem.machState !=SYSTEM_STATE_WAIT_USER_FAIL_ACK &&
-				   MainSystem.machState !=SYSTEM_STATE_LINUX_SHUT_DOWN
+				   MainSystem.machState !=SYSTEM_STATE_LINUX_SHUT_DOWN &&				   
+				   MainSystem.machState !=SYSTEM_STATE_IDLE &&
+				   MainSystem.machState !=SYSTEM_STATE_POWERED
 				  )
 				{					
 					MainSystem.machState =SYSTEM_STATE_POWER_DOWN;
