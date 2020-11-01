@@ -61,3 +61,6 @@ v0.14	  Do not enter usb powered mode
 v0.15	  Copy files if shutdown in startup up states(idle/powered)
 09/05/20  Reset usb drive (GPS power) if device (/dev/sdx) not found
 	  Find newest file 
+
+v0.16	  Lockup if power button pushed while in SYSTEM_STATE_STARTUP
+10/25/20  fixed

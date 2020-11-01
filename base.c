@@ -6,7 +6,7 @@
 
 #include <dirent.h>
 
-#define BASE_STATION_VERSION "BASE STATION v0.15 09/05/2020\n"   
+#define BASE_STATION_VERSION "BASE STATION v0.16 10/25/2020\n"   
 
 #define SWIFTNAV
 #ifdef SWIFTNAV
@@ -1307,8 +1307,11 @@ int main(void)
 //YellowLedOn(LED_BLINK, spec.tv_nsec/1000000);
 //YellowLedOff();
 					
-					//printf("\npwr external USB\n");						
+					//printf("\npwr external USB\n");														
 					//MainSystem.machState =SYSTEM_STATE_USB_POWERED;
+					
+					MainSystem.stateTimer =spec.tv_sec;
+					MainSystem.machState =SYSTEM_STATE_POWER_DOWN_NO_FILE;					
 				}
 				break;
 			case SYSTEM_STATE_IDLE:										
@@ -1896,14 +1899,14 @@ int main(void)
 				
 				if(MainSystem.machState !=SYSTEM_STATE_READY &&
 				   MainSystem.machState !=SYSTEM_STATE_STARTUP &&
+				   MainSystem.machState !=SYSTEM_STATE_IDLE &&
 				   MainSystem.machState !=SYSTEM_STATE_USB_POWERED &&
 				   MainSystem.machState !=SYSTEM_STATE_SHUT_DOWN &&
 				   MainSystem.machState !=SYSTEM_STATE_COPY_FILES &&
 				   MainSystem.machState !=SYSTEM_STATE_WAIT_USB_MOUNT &&
 				   MainSystem.machState !=SYSTEM_STATE_FINALIZE_DATA_TRANSFER &&
 				   MainSystem.machState !=SYSTEM_STATE_WAIT_USER_FAIL_ACK &&
-				   MainSystem.machState !=SYSTEM_STATE_LINUX_SHUT_DOWN &&				   
-				   MainSystem.machState !=SYSTEM_STATE_IDLE &&
+				   MainSystem.machState !=SYSTEM_STATE_LINUX_SHUT_DOWN &&				   				  
 				   MainSystem.machState !=SYSTEM_STATE_POWERED
 				  )
 				{					
