@@ -6,7 +6,7 @@
 
 #include <dirent.h>
 
-#define BASE_STATION_VERSION "BASE STATION v0.16 10/25/2020\n"   
+#define BASE_STATION_VERSION "BASE STATION v0.17 11/14/2020\n"   
 
 #define SWIFTNAV
 #ifdef SWIFTNAV
@@ -1306,12 +1306,12 @@ int main(void)
 //YellowLedOn(LED_ON, spec.tv_nsec/1000000);					
 //YellowLedOn(LED_BLINK, spec.tv_nsec/1000000);
 //YellowLedOff();
+					YellowLedOn(LED_BLINK, spec.tv_nsec/1000000);
+					printf("\npwr external USB\n");														
+					MainSystem.machState =SYSTEM_STATE_USB_POWERED;
 					
-					//printf("\npwr external USB\n");														
-					//MainSystem.machState =SYSTEM_STATE_USB_POWERED;
-					
-					MainSystem.stateTimer =spec.tv_sec;
-					MainSystem.machState =SYSTEM_STATE_POWER_DOWN_NO_FILE;					
+					//MainSystem.stateTimer =spec.tv_sec;
+					//MainSystem.machState =SYSTEM_STATE_POWER_DOWN_NO_FILE;					
 				}
 				break;
 			case SYSTEM_STATE_IDLE:										
@@ -1718,16 +1718,14 @@ int main(void)
 				break;
 			case SYSTEM_STATE_LINUX_SHUT_DOWN:
 				/* do nothing state */		
-			#if 0
-				if( (spec.tv_sec - MainSystem.stateTimer) >8 )
-				{
-					YellowLedOff();
-					system("shutdown -H now");
-				}					
-			#endif
 				break;
 			case SYSTEM_STATE_USB_POWERED:
 				/* do nothing state */
+				if( ReadPowerSw()==0 )
+				{					
+					MainSystem.stateTimer =spec.tv_sec;
+					MainSystem.machState =SYSTEM_STATE_SHUT_DOWN;
+				}
 				break;				
 			case SYSTEM_STATE_SELF_TEST_FAIL:
 				if( ReadPowerOnStatus() ==0 )

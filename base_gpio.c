@@ -67,8 +67,8 @@ unsigned int RedLedStartTime;
 int GreenLedState;
 unsigned int GreenLedStartTime;
 
-//int YellowLedState;
-//unsigned int YellowLedStartTime;
+int YellowLedState;
+unsigned int YellowLedStartTime;
 #endif
 
 //mraa_i2c_context i2c;
@@ -425,7 +425,6 @@ void SetLedState(unsigned int time)
 			break;
 	}
 
-
 	switch(GreenLedState)
 	{
 		case LED_OFF:
@@ -466,16 +465,16 @@ void SetLedState(unsigned int time)
 			break;			
 	}
 	
-#if 0
+#if 1
 	switch(YellowLedState)
 	{
 		case LED_OFF:
-			mraa_gpio_write(RedLedPin, 0);
-			mraa_gpio_write(GreenLedPin, 0);
+			//mraa_gpio_write(RedLedPin, 0);
+			//mraa_gpio_write(GreenLedPin, 0);
 			break;
 		case LED_ON:
-			mraa_gpio_write(RedLedPin, 1);
-			mraa_gpio_write(GreenLedPin, 1);
+			//mraa_gpio_write(RedLedPin, 1);
+			//mraa_gpio_write(GreenLedPin, 1);
 			break;	
 		case LED_BLINK:
 		    if( (time -YellowLedStartTime)<100 )
