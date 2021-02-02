@@ -343,7 +343,7 @@ int ManageLogfiles(int findNewest)
 						//printf("%d %d %d %d %d %d\n", fileTime.tm_year, fileTime.tm_mon, fileTime.tm_mday, fileTime.tm_hour,fileTime.tm_min,fileTime.tm_sec);
 						
 						epoch = mktime(&fileTime);		 
-						printf("%d %s\n", epoch, dir->d_name);
+						printf("Epoc %d %s\n", epoch, dir->d_name);
 				
 						break;
 					}	
@@ -1347,7 +1347,7 @@ int main(void)
 					strcpy( txBuffer, GnssMsg[6]);
 					mraa_uart_flush(uart);
 					mraa_uart_write(uart, txBuffer, sizeof(txBuffer)); //32);
-					//mraa_uart_flush(uart);
+					mraa_uart_flush(uart);
 					printf(txBuffer);				
 				#else				
 					printf("\nGet GPS time\n");
